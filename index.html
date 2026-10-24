@@ -33,7 +33,6 @@
                 setLoading(true);
                 setApiStatus("正在透過代理連接 Yahoo Finance 獲取 QQQ 數據...");
                 
-                // 完整帶有 QQQ 代碼的 API 鏈結
                 const targetUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/QQQ?interval=1d&range=1d';
                 const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
 
@@ -47,25 +46,22 @@
                     const previousClose = meta.chartPreviousClose || meta.previousClose;
 
                     setSpotPrice(currentPrice);
-                    // 自動以現價微調預設的支撐與阻力牆
                     setPutWall(Math.round((currentPrice * 0.985) * 2) / 2);
                     setCallWall(Math.round((currentPrice * 1.015) * 2) / 2);
                     setVwap(currentPrice);
 
-                    setApiStatus(`✅ 成功同步！QQQ 現價: $${currentPrice.toFixed(2)} (昨收: $${previousClose})`);
+                    setApiStatus(`✅ 成功同步！QQQ 現價: $${currentPrice.toFixed(2)} (昨收: $${previousClose.toFixed(2)})`);
                 } catch (error) {
                     console.error("抓取失敗:", error);
-                    setApiStatus(`❌ 抓取失敗（可能為週末或網絡限制）：${error.message}，已啟用手動模擬模式。`);
+                    setApiStatus(`❌ 抓取失敗：${error.message}，已啟用手動模擬模式。`);
                 } finally {
                     setLoading(false);
                 }
             };
 
-            // 計算牆體距離
             const distToPut = ((spotPrice - putWall) / spotPrice) * 100;
             const distToCall = ((callWall - spotPrice) / spotPrice) * 100;
 
-            // 操盤信號判定
             let signalType = "【區間震盪觀望中】";
             let signalColor = "text-amber-400 border-amber-500/30 bg-amber-500/10";
             let actionDesc = `當前價格 ($${spotPrice}) 處於 Put 支撐牆 ($${putWall}) 與 Call 阻力牆 ($${callWall}) 之間。建議耐心等待極端位置執行做 T。`;
@@ -146,7 +142,7 @@
                             <div className="space-y-3">
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-400 text-sm">成交量 PCR 比值:</span>
-                                    <span className="text-cyan-400 font-bold">{pcrValue}</span>
+                                    <span className="text-cyan-400 font-bold">{pcrVolume}</span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-slate-400 text-sm">Put 隱含波動率 (IV):</span>
@@ -210,7 +206,7 @@
             );
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        ReactDOM.render(<QQQQuantApp />, document.getElementById('root'));
     </script>
 </body>
 </html>
