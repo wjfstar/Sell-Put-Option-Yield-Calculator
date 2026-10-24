@@ -13,234 +13,268 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-6">
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel">
-        function QQQQuantApp() {
-            // 基礎正股數據 (可對應本地 Python 跑出的現價 $704.40)
-            const [spotPrice, setSpotPrice] = React.useState(704.40);
-            const [vwap, setVwap] = React.useState(704.45);
-            const [maxPain, setMaxPain] = React.useState(705.00);
-            const [pcrVolume, setPcrVolume] = React.useState(1.18);
+<script type="text/babel">
+    function QQQQuantApp() {
+        // 基礎正股數據 (預設值，頁面載入時會自動向後端 API 同步)
+        const [spotPrice, setSpotPrice] = React.useState(704.40);
+        const [vwap, setVwap] = React.useState(704.45);
+        const [dailyChangePct, setDailyChangePct] = React.useState(-2.87);
+        const [maxPain, setMaxPain] = React.useState(705.00);
+        const [pcrVolume, setPcrVolume] = React.useState(1.18);
+        const [loading, setLoading] = React.useState(true);
 
-            // Put 托底牆 (700 價位) 盤口細節
-            const [putStrike, setPutStrike] = React.useState(700.00);
-            const [putBid, setPutBid] = React.useState(3.20);
-            const [putAsk, setPutAsk] = React.useState(3.25);
-            const [putVolume, setPutVolume] = React.useState(12500);
-            const [putOI, setPutOI] = React.useState(45000);
+        // Put 托底牆 (700 價位) 盤口細節
+        const [putStrike, setPutStrike] = React.useState(700.00);
+        const [putBid, setPutBid] = React.useState(3.20);
+        const [putAsk, setPutAsk] = React.useState(3.25);
+        const [putVolume, setPutVolume] = React.useState(12500);
+        const [putOI, setPutOI] = React.useState(45000);
 
-            // Call 阻力牆 (715 價位) 盤口細節
-            const [callStrike, setCallStrike] = React.useState(715.00);
-            const [callBid, setCallBid] = React.useState(1.85);
-            const [callAsk, setCallAsk] = React.useState(1.90);
-            const [callVolume, setCallVolume] = React.useState(15800);
-            const [callOI, setCallOI] = React.useState(52000);
+        // Call 阻力牆 (715 價位) 盤口細節
+        const [callStrike, setCallStrike] = React.useState(715.00);
+        const [callBid, setCallBid] = React.useState(1.85);
+        const [callAsk, setCallAsk] = React.useState(1.90);
+        const [callVolume, setCallVolume] = React.useState(15800);
+        const [callOI, setCallOI] = React.useState(52000);
 
-            // 計算距離牆體的百分比
-            const distToPut = ((spotPrice - putStrike) / spotPrice) * 100;
-            const distToCall = ((callStrike - spotPrice) / spotPrice) * 100;
+        // 自動向 Vercel Python 後端 API 請求真實數據
+        const fetchRealtimeData = () => {
+            setLoading(true);
+            fetch('/api/qqq')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setSpotPrice(data.spotPrice);
+                        setVwap(data.vwap);
+                        setDailyChangePct(data.dailyChangePct);
+                    }
+                    setLoading(false);
+                })
+                .catch(err => {
+                    console.error("獲取後端數據失敗:", err);
+                    setLoading(false);
+                });
+        };
 
-            // 操盤信號判定
-            let signalType = "【區間震盪觀望中】";
-            let signalColor = "text-amber-400 border-amber-500/30 bg-amber-500/10";
-            let actionDesc = `當前價格 ($${spotPrice}) 處於 Put 托底牆 ($${putStrike}) 與 Call 阻力牆 ($${callStrike}) 之間。建議耐心等待極端位置執行做 T。`;
+        React.useEffect(() => {
+            fetchRealtimeData();
+        }, []);
 
-            if (spotPrice <= putStrike * 1.008 && pcrVolume > 1.0) {
-                signalType = "🔥 【強力買入 / 支撐位低吸做 T 信號】";
-                signalColor = "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
-                actionDesc = `現價已逼近 $${putStrike} Put 托底牆，且 700 Put 掛單量 (${putOI.toLocaleString()} 張) 形成巨量護盤。做市商對沖買盤隨時引發反彈！`;
-            } else if (spotPrice >= callStrike * 0.992) {
-                signalType = "⚠️ 【高拋減倉 / 715 阻力防禦信號】";
-                signalColor = "text-rose-400 border-rose-500/30 bg-rose-500/10";
-                actionDesc = `現價正逼近 $${callStrike} Call 壓制天花板，715 Call 累積了 ${callOI.toLocaleString()} 張賣壓大單。建議在此區域執行高拋做 T 或堅守 GTC 賣單！`;
-            }
+        // 計算距離牆體的百分比
+        const distToPut = ((spotPrice - putStrike) / spotPrice) * 100;
+        const distToCall = ((callStrike - spotPrice) / spotPrice) * 100;
 
-            return (
-                <div className="max-w-6xl mx-auto space-y-6">
-                    {/* 頂部標題與狀態 */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <h1 className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
-                                📊 QQQ 期權盤口（Bid/Ask/單量）量化分析模型
-                            </h1>
-                            <p className="text-slate-400 text-sm mt-1">
-                                精準鎖定 Put/Call 的買賣價 (Bid/Ask)、成交量 (Volume) 與未平倉單量 (OI)，指導 700 低吸與 715 高拋。
-                            </p>
-                        </div>
+        // 操盤信號判定
+        let signalType = "【區間震盪觀望中】";
+        let signalColor = "text-amber-400 border-amber-500/30 bg-amber-500/10";
+        let actionDesc = `當前價格 ($${spotPrice}) 處於 Put 托底牆 ($${putStrike}) 與 Call 阻力牆 ($${callStrike}) 之間。建議耐心等待極端位置執行做 T。`;
+
+        if (spotPrice <= putStrike * 1.008 && pcrVolume > 1.0) {
+            signalType = "🔥 【強力買入 / 支撐位低吸做 T 信號】";
+            signalColor = "text-emerald-400 border-emerald-500/30 bg-emerald-500/10";
+            actionDesc = `現價已逼近 $${putStrike} Put 托底牆，且 700 Put 掛單量 (${putOI.toLocaleString()} 張) 形成巨量護盤。做市商對沖買盤隨時引發反彈！`;
+        } else if (spotPrice >= callStrike * 0.992) {
+            signalType = "⚠️ 【高拋減倉 / 715 阻力防禦信號】";
+            signalColor = "text-rose-400 border-rose-500/30 bg-rose-500/10";
+            actionDesc = `現價正逼近 $${callStrike} Call 壓制天花板，715 Call 累積了 ${callOI.toLocaleString()} 張賣壓大單。建議在此區域執行高拋做 T 或堅守 GTC 賣單！`;
+        }
+
+        return (
+            <div className="max-w-6xl mx-auto space-y-6">
+                {/* 頂部標題與狀態 */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold text-emerald-400 flex items-center gap-2">
+                            📊 QQQ 期權盤口（雲端即時同步）量化分析模型
+                        </h1>
+                        <p className="text-slate-400 text-sm mt-1">
+                            後端 API 自動同步雅虎財經現價，結合期權 Bid/Ask 與未平倉單量 (OI)，指導 700 低吸與 715 高拋。
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
                         <div className="bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 text-right">
-                            <span className="text-xs text-slate-400 block">QQQ 即時現價</span>
+                            <span className="text-xs text-slate-400 block">QQQ 即時現價 {loading && "(更新中...)"}</span>
                             <span className="text-xl font-extrabold text-cyan-400">${spotPrice.toFixed(2)}</span>
+                            <span className={`text-xs ml-2 font-bold ${dailyChangePct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {dailyChangePct >= 0 ? `+${dailyChangePct}%` : `${dailyChangePct}%`}
+                            </span>
+                        </div>
+                        <button onClick={fetchRealtimeData} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition">
+                            🔄 重新整理
+                        </button>
+                    </div>
+                </div>
+
+                {/* 操盤決策核心看板 */}
+                <div className={`border rounded-2xl p-6 ${signalColor} transition-all`}>
+                    <h2 className="text-lg font-bold mb-2 flex items-center gap-2">{signalType}</h2>
+                    <p className="text-slate-200 text-sm leading-relaxed">{actionDesc}</p>
+                </div>
+
+                {/* 核心盤口對比網格 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                    {/* 1. Put 托底牆盤口細節 (700 價位) */}
+                    <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-5 space-y-4 shadow-lg">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h3 className="text-base font-bold text-emerald-400 flex items-center gap-2">
+                                🛡️ Put 托底護盤牆 ({putStrike} 支撐)
+                            </h3>
+                            <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold">
+                                距離現價 {distToPut.toFixed(2)}%
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">買價 / 賣價 (Bid / Ask)</span>
+                                <span className="text-lg font-mono font-bold text-emerald-400">${putBid.toFixed(2)} / ${putAsk.toFixed(2)}</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">買賣點差 (Spread)</span>
+                                <span className="text-lg font-mono font-bold text-white">${(putAsk - putBid).toFixed(2)}</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">當日成交單量 (Volume)</span>
+                                <span className="text-lg font-mono font-bold text-cyan-400">{putVolume.toLocaleString()} 張</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">護盤未平倉量 (Open Int)</span>
+                                <span className="text-lg font-mono font-bold text-amber-400">{putOI.toLocaleString()} 張</span>
+                            </div>
                         </div>
                     </div>
 
-                    {/* 操盤決策核心看板 */}
-                    <div className={`border rounded-2xl p-6 ${signalColor} transition-all`}>
-                        <h2 className="text-lg font-bold mb-2 flex items-center gap-2">{signalType}</h2>
-                        <p className="text-slate-200 text-sm leading-relaxed">{actionDesc}</p>
+                    {/* 2. Call 阻力牆盤口細節 (715 價位) */}
+                    <div className="bg-slate-900 border border-rose-500/30 rounded-2xl p-5 space-y-4 shadow-lg">
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h3 className="text-base font-bold text-rose-400 flex items-center gap-2">
+                                ⚠️ Call 阻力壓制牆 ({callStrike} 天花板)
+                            </h3>
+                            <span className="bg-rose-500/20 text-rose-400 text-xs px-2.5 py-1 rounded-full font-bold">
+                                距離現價 +{distToCall.toFixed(2)}%
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">買價 / 賣價 (Bid / Ask)</span>
+                                <span className="text-lg font-mono font-bold text-rose-400">${callBid.toFixed(2)} / ${callAsk.toFixed(2)}</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">買賣點差 (Spread)</span>
+                                <span className="text-lg font-mono font-bold text-white">${(callAsk - callBid).toFixed(2)}</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">當日成交單量 (Volume)</span>
+                                <span className="text-lg font-mono font-bold text-cyan-400">{callVolume.toLocaleString()} 張</span>
+                            </div>
+                            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                                <span className="text-xs text-slate-400 block mb-1">壓制未平倉量 (Open Int)</span>
+                                <span className="text-lg font-mono font-bold text-amber-400">{callOI.toLocaleString()} 張</span>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* 核心盤口對比網格 */}
+                </div>
+
+                {/* 輔助量化指標 */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <span className="text-slate-400 text-sm">成交量 PCR 比值:</span>
+                        <span className="text-cyan-400 font-bold">{pcrVolume}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <span className="text-slate-400 text-sm">正股 VWAP:</span>
+                        <span className="text-white font-bold">${vwap.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <span className="text-slate-400 text-sm">最大痛點 (Max Pain):</span>
+                        <span className="text-amber-400 font-bold">${maxPain.toFixed(2)}</span>
+                    </div>
+                </div>
+
+                {/* 盤口買賣價與單量即時手動微調面板 */}
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">🎛️ 實盤數據微調面板 (支援後端自動同步覆蓋)</h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 pb-4 border-b border-slate-800">
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">QQQ 現價 ($)</label>
+                            <input type="number" step="0.05" value={spotPrice} onChange={(e) => setSpotPrice(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">正股 VWAP ($)</label>
+                            <input type="number" step="0.05" value={vwap} onChange={(e) => setVwap(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">成交量 PCR</label>
+                            <input type="number" step="0.01" value={pcrVolume} onChange={(e) => setPcrVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        {/* 1. Put 托底牆盤口細節 (700 價位) */}
-                        <div className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-5 space-y-4 shadow-lg">
-                            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                                <h3 className="text-base font-bold text-emerald-400 flex items-center gap-2">
-                                    🛡️ Put 托底護盤牆 ({putStrike} 支撐)
-                                </h3>
-                                <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2.5 py-1 rounded-full font-bold">
-                                    距離現價 {distToPut.toFixed(2)}%
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">買價 / 賣價 (Bid / Ask)</span>
-                                    <span className="text-lg font-mono font-bold text-emerald-400">${putBid.toFixed(2)} / ${putAsk.toFixed(2)}</span>
+                        {/* Put 盤口輸入 */}
+                        <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-emerald-500/20">
+                            <h4 className="text-xs font-bold text-emerald-400 uppercase">PUT ({putStrike} 護盤牆) 盤口輸入</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Put 行權價 ($)</label>
+                                    <input type="number" step="0.5" value={putStrike} onChange={(e) => setPutStrike(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
                                 </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">買賣點差 (Spread)</span>
-                                    <span className="text-lg font-mono font-bold text-white">${(putAsk - putBid).toFixed(2)}</span>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Put Bid / Ask ($)</label>
+                                    <div className="flex gap-1">
+                                        <input type="number" step="0.05" value={putBid} onChange={(e) => setPutBid(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
+                                        <input type="number" step="0.05" value={putAsk} onChange={(e) => setPutAsk(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
+                                    </div>
                                 </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">當日成交單量 (Volume)</span>
-                                    <span className="text-lg font-mono font-bold text-cyan-400">{putVolume.toLocaleString()} 張</span>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">成交單量 Volume</label>
+                                    <input type="number" value={putVolume} onChange={(e) => setPutVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
                                 </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">護盤未平倉量 (Open Int)</span>
-                                    <span className="text-lg font-mono font-bold text-amber-400">{putOI.toLocaleString()} 張</span>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">未平倉量 Open Int</label>
+                                    <input type="number" value={putOI} onChange={(e) => setPutOI(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
                                 </div>
                             </div>
                         </div>
 
-                        {/* 2. Call 阻力牆盤口細節 (715 價位) */}
-                        <div className="bg-slate-900 border border-rose-500/30 rounded-2xl p-5 space-y-4 shadow-lg">
-                            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                                <h3 className="text-base font-bold text-rose-400 flex items-center gap-2">
-                                    ⚠️ Call 阻力壓制牆 ({callStrike} 天花板)
-                                </h3>
-                                <span className="bg-rose-500/20 text-rose-400 text-xs px-2.5 py-1 rounded-full font-bold">
-                                    距離現價 +{distToCall.toFixed(2)}%
-                                </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">買價 / 賣價 (Bid / Ask)</span>
-                                    <span className="text-lg font-mono font-bold text-rose-400">${callBid.toFixed(2)} / ${callAsk.toFixed(2)}</span>
+                        {/* Call 盤口輸入 */}
+                        <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-rose-500/20">
+                            <h4 className="text-xs font-bold text-rose-400 uppercase">CALL ({callStrike} 阻力牆) 盤口輸入</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Call 行權價 ($)</label>
+                                    <input type="number" step="0.5" value={callStrike} onChange={(e) => setCallStrike(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
                                 </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">買賣點差 (Spread)</span>
-                                    <span className="text-lg font-mono font-bold text-white">${(callAsk - callBid).toFixed(2)}</span>
-                                </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">當日成交單量 (Volume)</span>
-                                    <span className="text-lg font-mono font-bold text-cyan-400">{callVolume.toLocaleString()} 張</span>
-                                </div>
-                                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                                    <span className="text-xs text-slate-400 block mb-1">壓制未平倉量 (Open Int)</span>
-                                    <span className="text-lg font-mono font-bold text-amber-400">{callOI.toLocaleString()} 張</span>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    {/* 輔助量化指標 */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-                            <span className="text-slate-400 text-sm">成交量 PCR 比值:</span>
-                            <span className="text-cyan-400 font-bold">{pcrVolume}</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-                            <span className="text-slate-400 text-sm">正股 VWAP:</span>
-                            <span className="text-white font-bold">${vwap.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center bg-slate-950 p-3 rounded-xl border border-slate-800">
-                            <span className="text-slate-400 text-sm">最大痛點 (Max Pain):</span>
-                            <span className="text-amber-400 font-bold">${maxPain.toFixed(2)}</span>
-                        </div>
-                    </div>
-
-                    {/* 盤口買賣價與單量即時手動微調面板 */}
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                        <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">🎛️ 實盤 BID/ASK 買賣價與單量手動輸入微調</h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 pb-4 border-b border-slate-800">
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">QQQ 現價 ($)</label>
-                                <input type="number" step="0.05" value={spotPrice} onChange={(e) => setSpotPrice(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-bold text-sm" />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">正股 VWAP ($)</label>
-                                <input type="number" step="0.05" value={vwap} onChange={(e) => setVwap(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                            </div>
-                            <div>
-                                <label className="block text-xs text-slate-400 mb-1">成交量 PCR</label>
-                                <input type="number" step="0.01" value={pcrVolume} onChange={(e) => setPcrVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Put 盤口輸入 */}
-                            <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-emerald-500/20">
-                                <h4 className="text-xs font-bold text-emerald-400 uppercase">PUT ({putStrike} 護盤牆) 盤口輸入</h4>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">Put 行權價 ($)</label>
-                                        <input type="number" step="0.5" value={putStrike} onChange={(e) => setPutStrike(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">Put Bid / Ask ($)</label>
-                                        <div className="flex gap-1">
-                                            <input type="number" step="0.05" value={putBid} onChange={(e) => setPutBid(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
-                                            <input type="number" step="0.05" value={putAsk} onChange={(e) => setPutAsk(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">成交單量 Volume</label>
-                                        <input type="number" value={putVolume} onChange={(e) => setPutVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">未平倉量 Open Int</label>
-                                        <input type="number" value={putOI} onChange={(e) => setPutOI(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Call Bid / Ask ($)</label>
+                                    <div className="flex gap-1">
+                                        <input type="number" step="0.05" value={callBid} onChange={(e) => setCallBid(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
+                                        <input type="number" step="0.05" value={callAsk} onChange={(e) => setCallAsk(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
                                     </div>
                                 </div>
-                            </div>
-
-                            {/* Call 盤口輸入 */}
-                            <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-rose-500/20">
-                                <h4 className="text-xs font-bold text-rose-400 uppercase">CALL ({callStrike} 阻力牆) 盤口輸入</h4>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">Call 行權價 ($)</label>
-                                        <input type="number" step="0.5" value={callStrike} onChange={(e) => setCallStrike(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">Call Bid / Ask ($)</label>
-                                        <div className="flex gap-1">
-                                            <input type="number" step="0.05" value={callBid} onChange={(e) => setCallBid(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
-                                            <input type="number" step="0.05" value={callAsk} onChange={(e) => setCallAsk(Number(e.target.value))} className="w-1/2 bg-slate-800 border border-slate-700 rounded-lg px-1.5 py-1.5 text-white text-xs" />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">成交單量 Volume</label>
-                                        <input type="number" value={callVolume} onChange={(e) => setCallVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs text-slate-400 mb-1">未平倉量 Open Int</label>
-                                        <input type="number" value={callOI} onChange={(e) => setCallOI(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
-                                    </div>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">成交單量 Volume</label>
+                                    <input type="number" value={callVolume} onChange={(e) => setCallVolume(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">未平倉量 Open Int</label>
+                                    <input type="number" value={callOI} onChange={(e) => setCallOI(Number(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm" />
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            );
-        }
+            </div>
+        );
+    }
 
-        ReactDOM.render(<QQQQuantApp />, document.getElementById('root'));
-    </script>
+    ReactDOM.render(<QQQQuantApp />, document.getElementById('root'));
+</script>
 </body>
+</html>
 </html>
